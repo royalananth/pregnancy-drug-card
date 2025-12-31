@@ -267,8 +267,24 @@ def load_and_prepare():
 # -----------------------------
 # UI
 # -----------------------------
-st.title("Pregnancy Drug Card (v1)")
-st.caption("Input: drug name or SMILES. Output: ADME/Toxicity + pregnancy-relevant summary (v1). Docking/PBPK/cytokines can be added later.")
+splash_screen(duration_sec=5)
+
+# Top bar (product header + exit)
+top = st.container(border=True)
+with top:
+    h1, h2, h3 = st.columns([6, 2, 1])
+    with h1:
+        st.markdown("## Pregnancy Drug Card")
+        st.caption("Developed by The Menon Laboratory, UTMB")
+    with h2:
+        selected_condition = st.selectbox("Pregnancy condition", list(PREGNANCY_CONDITIONS.keys()), index=0)
+    with h3:
+        # "Exit" on web = close tab; this works in many browsers
+        if st.button("Exit", use_container_width=True):
+            st.markdown(
+                "<script>window.open('','_self'); window.close();</script>",
+                unsafe_allow_html=True
+            )
 
 try:
     df, name_col, smiles_col = load_and_prepare()
@@ -276,50 +292,20 @@ except Exception as e:
     st.error(f"Failed to load CSV: {e}")
     st.stop()
 
-is_mobile = st.session_state.get("is_mobile", False)
-
-with st.sidebar:
-    st.markdown("### View")
-    is_mobile = st.toggle("Mobile layout", value=is_mobile)
-    st.session_state["is_mobile"] = is_mobile
-
-    st.markdown("### Pregnancy condition")
-    selected_condition = st.selectbox("Select condition", list(PREGNANCY_CONDITIONS.keys()), index=0)
-
-if is_mobile:
-    left = st.container()
-    right = st.container()
-else:
-    left, right = st.columns([1, 2], gap="large")
+# Single screen: left search + right content
+left, right = st.columns([1.15, 2.2], gap="large")
 
 with left:
     st.subheader("Search")
-
-    tab1, tab2 = st.tabs(["Drug name search", "Paste SMILES"])
-
-    query_name = ""
-    pasted_smiles = ""
-
-    with tab1:
-        query_name = st.text_input("Type drug name (partial is OK)", "")
-
-    with tab2:
-        pasted_smiles = st.text_area(
-            "Paste SMILES here",
-            height=90,
-            placeholder="e.g., CC(=O)NC1=CC=C(O)C=C1"
-        )
+    query_name = st.text_input("Drug name", placeholder="Type name (partial ok)")
+    pasted_smiles = st.text_area("Or paste SMILES", height=90, placeholder="Paste SMILES here")
 
     display_name = df[name_col] if name_col else pd.Series(["(no name column)"] * len(df))
 
-    # Filtering logic
     if pasted_smiles and pasted_smiles.strip():
         q = pasted_smiles.strip()
         exact = df[df[smiles_col].fillna("").astype(str).str.strip() == q]
-        if len(exact) > 0:
-            filtered = exact.copy()
-        else:
-            filtered = df[df[smiles_col].fillna("").astype(str).str.contains(q, na=False)].copy()
+        filtered = exact.copy() if len(exact) else df[df[smiles_col].fillna("").astype(str).str.contains(q, na=False)].copy()
     else:
         if query_name.strip():
             q = query_name.strip().lower()
@@ -328,7 +314,7 @@ with left:
         else:
             filtered = df.copy()
 
-    st.write(f"Matches: {len(filtered)}")
+    st.caption(f"Matches: {len(filtered)}")
     if len(filtered) == 0:
         st.stop()
 
@@ -338,23 +324,24 @@ with left:
         + filtered[smiles_col].fillna("").astype(str)
     ).tolist()
 
-    sel = st.selectbox("Select a compound", filtered_display, index=0)
+    sel = st.selectbox("Select compound", filtered_display, index=0)
     row = filtered.iloc[filtered_display.index(sel)]
 
 with right:
-    st.subheader("Drug Card")
-
-    mol = safe_mol_from_smiles(row[smiles_col])
-    if mol:
-        img = Draw.MolToImage(mol, size=(1200, 675))  # 16:9
-        st.image(img, caption="Structure (16:9 render)", use_container_width=True)
-
+    # --- Key identity / structure ---
     name_val = row[name_col] if name_col else "Unknown"
-    st.markdown(f"### {name_val}")
-    st.code(f"SMILES: {row[smiles_col]}", language="text")
-    st.write(f"**InChIKey:** {row.get('InChIKey_calc', 'NA')}")
+    smiles_val = str(row[smiles_col])
 
-    # Column detection
+    st.markdown(f"### {name_val}")
+    st.code(f"SMILES: {smiles_val}", language="text")
+    st.write(f"**InChIKey:** {row.get('InChIKey_calc','NA')}")
+
+    mol = safe_mol_from_smiles(smiles_val)
+    if mol:
+        img = Draw.MolToImage(mol, size=(1200, 675))  # 16:9 render
+        st.image(img, caption="Structure", use_container_width=True)
+
+    # --- Column detection (same as your current logic + BBB) ---
     logp_col = find_col(df, ["LogP", "logP", "cLogP", "XlogP"])
     logd_col = find_col(df, ["LogD", "logD"])
     logs_col = find_col(df, ["LogS", "logS", "Solubility"])
@@ -392,15 +379,13 @@ with right:
     logs = as_prob(row[logs_col]) if logs_col else None
     ppb  = as_prob(row[ppb_col])  if ppb_col  else None
     bbb  = as_prob(row[bbb_col])  if bbb_col  else None
-
     pgp_sub = as_prob(row[pgp_sub_col]) if pgp_sub_col else None
     pgp_inh = as_prob(row[pgp_inh_col]) if pgp_inh_col else None
 
-    # CYP probabilities
     cyp_sub_probs = {k: (as_prob(row[v]) if v else None) for k, v in cyp_sub_cols.items()}
     cyp_inh_probs = {k: (as_prob(row[v]) if v else None) for k, v in cyp_inh_cols.items()}
 
-    # Heuristics
+    # Pregnancy heuristics
     lipoph = logp if logp is not None else logd
     transfer_label, transfer_reasons = pregnancy_transfer_risk(
         lipoph,
@@ -409,6 +394,98 @@ with right:
         ppb
     )
     ddi_label, ddi_reasons = metabolism_ddi_risk(cyp_sub_probs, cyp_inh_probs)
+
+    # --- One single "dashboard" area ---
+    grid = st.container(border=True)
+    with grid:
+        st.markdown("#### ADME + Toxicity overview")
+        a, b, c = st.columns(3)
+        a.metric("MW", f"{row['RDKit_MW']:.1f}" if pd.notna(row["RDKit_MW"]) else "NA")
+        a.metric("BBB", f"{bbb:.2f}" if bbb is not None else "NA")
+        b.metric("logP", f"{logp:.2f}" if logp is not None else "NA")
+        b.metric("logD", f"{logd:.2f}" if logd is not None else "NA")
+        c.metric("logS", f"{logs:.2f}" if logs is not None else "NA")
+        c.metric("PPB", f"{ppb}" if ppb is not None else "NA")
+
+        st.write(f"**P-gp substrate:** {pgp_sub if pgp_sub is not None else 'NA'}")
+        st.write(f"**P-gp inhibitor:** {pgp_inh if pgp_inh is not None else 'NA'}")
+
+        st.write("**CYP substrate likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_sub_probs.items()})
+        st.write("**CYP inhibitor likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_inh_probs.items()})
+
+        tox_flags = tox_flag_summary(row, tox_cols)
+        st.write("**Toxicity flags:** " + (", ".join(tox_flags) if tox_flags else "No strong flags detected (threshold-based)"))
+        if toxclass_col:
+            st.write(f"**Toxicity class:** {row[toxclass_col]}")
+        if ld50_col:
+            st.write(f"**LD50:** {row[ld50_col]}")
+
+        st.markdown("---")
+        st.markdown("#### Pregnancy report (1 paragraph + 5 bullets)")
+
+        # Build report text (same format you already like)
+        inchi = row.get("InChIKey_calc", "NA")
+        mw_val = f"{row['RDKit_MW']:.1f}" if pd.notna(row["RDKit_MW"]) else "NA"
+        tpsa_val = f"{row['RDKit_TPSA']:.1f}" if pd.notna(row["RDKit_TPSA"]) else "NA"
+        logp_val = f"{logp:.2f}" if logp is not None else "NA"
+        logd_val = f"{logd:.2f}" if logd is not None else "NA"
+        logs_val = f"{logs:.2f}" if logs is not None else "NA"
+        ppb_val  = f"{ppb}" if ppb is not None else "NA"
+        bbb_val  = f"{bbb:.2f}" if bbb is not None else "NA"
+        pgp_sub_val = f"{pgp_sub:.2f}" if pgp_sub is not None else "NA"
+        pgp_inh_val = f"{pgp_inh:.2f}" if pgp_inh is not None else "NA"
+
+        drivers = []
+        for enz, v in cyp_sub_probs.items():
+            if v is not None and v >= 0.5:
+                drivers.append(f"{enz} substrate")
+        for enz, v in cyp_inh_probs.items():
+            if v is not None and v >= 0.5:
+                drivers.append(f"{enz} inhibitor")
+        top_cyps = ", ".join(drivers[:4]) if drivers else "no strong CYP substrate/inhibitor signals (by threshold)"
+
+        tox_summary = ", ".join(tox_flags) if tox_flags else "no strong toxicity flags detected"
+        cond_goal = PREGNANCY_CONDITIONS[selected_condition]["goal"]
+
+        paragraph = (
+            f"{name_val} is predicted to have BBB permeability {bbb_val}, P-gp substrate {pgp_sub_val} and inhibitor {pgp_inh_val}, "
+            f"with {ddi_label} pregnancy PK shift/DDI potential (key drivers: {top_cyps}). "
+            f"Placental transfer likelihood is estimated as {transfer_label} based on lipophilicity (logP/logD), polarity (TPSA), PPB, and P-gp interaction. "
+            f"Toxicity signals indicate {tox_summary}. Condition focus: {selected_condition}. {cond_goal}"
+        )
+
+        bullets = [
+            f"Identity: {name_val} | InChIKey: {inchi}",
+            f"ADME: MW {mw_val} | TPSA {tpsa_val} | logP {logp_val} / logD {logd_val} | logS {logs_val} | PPB {ppb_val} | BBB {bbb_val}",
+            f"Transporter/CYP/DDI: P-gp sub {pgp_sub_val} | P-gp inh {pgp_inh_val} | PK shift/DDI risk: {ddi_label}",
+            f"Placental transfer likelihood: {transfer_label}",
+            f"Toxicity: {tox_summary}" + (f" | class {row[toxclass_col]}" if toxclass_col else "")
+        ]
+
+        caution = (
+            "Clinical caution: This report is based on in-silico predictions (ADMETlab/ProTox) plus rule-based heuristics; "
+            "it is not a clinical recommendation. Interpret alongside guidelines, patient context, and experimental validation."
+        )
+
+        st.write(paragraph)
+        st.markdown("- " + "\n- ".join([f"**{b}**" if i == 0 else b for i, b in enumerate(bullets)]))
+        st.info(caution)
+
+        # PDF export
+        pdf_bytes = build_pdf_bytes(
+            title=f"Pregnancy Drug Card — {name_val}",
+            paragraph=paragraph,
+            bullets=bullets,
+            caution=caution
+        )
+        st.download_button(
+            "Print / Download PDF",
+            data=pdf_bytes,
+            file_name=f"{name_val}_pregnancy_drug_card.pdf".replace(" ", "_"),
+            mime="application/pdf",
+            use_container_width=True
+        )
+
 
     # -----------------------------
     # ADME snapshot (requested fields)
@@ -530,3 +607,4 @@ with right:
         st.write("- Add pregnancy condition rules once your condition definitions are finalized.")
 
     st.caption("Note: v1 is rule-based using ADMET/ProTox columns + RDKit descriptors. Docking/PBPK/cytokines will plug in as additional evidence later.")
+
