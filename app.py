@@ -32,6 +32,47 @@ except Exception:
 # =========================
 st.set_page_config(page_title="Pregnancy Drug Card", layout="wide")
 
+st.markdown(
+    """
+    <style>
+      .section-title {
+        font-size: 16px;
+        font-weight: 900;
+        margin: 0 0 8px 0;
+      }
+      .muted {
+        opacity: 0.82;
+        font-size: 13px;
+      }
+      .pill {
+        display:inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 12px;
+        border: 1px solid rgba(255,77,166,0.35);
+        background: rgba(255,77,166,0.12);
+        color: #ff4da6;
+        margin-right: 8px;
+        margin-bottom: 6px;
+      }
+      .card {
+        border-radius: 18px;
+        border: 1px solid rgba(255,77,166,0.20);
+        background: rgba(0,0,0,0.02);
+        padding: 14px 14px;
+      }
+      .subgrid {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.08);
+        padding: 12px 12px;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 CSV_PATH = "Master table_260 drugs_ADME_Protox.csv"
 MENON_LOGO_PATH = "menon_logo.png"
 UTMB_LOGO_PATH = "utmb_logo.png"
@@ -460,6 +501,55 @@ Return JSON only.
     data = json.loads(resp.output_text)
     return data["paragraph"], data["bullets"], data["caution"]
 
+def fmt(v, digits=2):
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "NA"
+    try:
+        return f"{float(v):.{digits}f}"
+    except Exception:
+        return str(v)
+
+def short_cyp_summary(cyp_sub_probs, cyp_inh_probs):
+    subs = [k for k, v in cyp_sub_probs.items() if v is not None and v >= 0.5]
+    inhibs = [k for k, v in cyp_inh_probs.items() if v is not None and v >= 0.5]
+    s1 = ", ".join(subs[:4]) if subs else "no strong substrate signals"
+    s2 = ", ".join(inhibs[:4]) if inhibs else "no strong inhibitor signals"
+    return s1, s2
+
+def build_natural_report(
+    drug_name: str,
+    condition: str,
+    condition_goal: str,
+    mw, tpsa, logp, logd, logs, ppb, bbb,
+    pgp_sub, pgp_inh,
+    transfer_label, ddi_label,
+    tox_summary,
+    cyp_sub_probs, cyp_inh_probs
+):
+    lipoph = logp if logp is not None else logd
+    sub_str, inh_str = short_cyp_summary(cyp_sub_probs, cyp_inh_probs)
+
+    # Natural narrative (no bullets)
+    text = (
+        f"**{drug_name}** was profiled for **{condition}**. The main objective for this condition is: "
+        f"*{condition_goal}* \n\n"
+        f"From an exposure/transport perspective, the compound has MW **{fmt(mw,1)}** and TPSA **{fmt(tpsa,1)}**, "
+        f"with lipophilicity (logP/logD) **{fmt(lipoph,2)}** and protein binding **{fmt(ppb,2)}**. "
+        f"BBB permeability is **{fmt(bbb,2)}** (if available). \n\n"
+        f"Transporter signals suggest **P-gp substrate: {fmt(pgp_sub,2)}** and **P-gp inhibitor: {fmt(pgp_inh,2)}**. "
+        f"Using a transparent heuristic, **placental transfer likelihood is {transfer_label}**. \n\n"
+        f"Metabolism/DDI signals indicate **{ddi_label} pregnancy PK-shift/DDI risk**, driven by CYP patterns "
+        f"(substrates: {sub_str}; inhibitors: {inh_str}). \n\n"
+        f"Toxicity flags from the current table indicate **{tox_summary}**. "
+        f"This interpretation is intended to help prioritize experimental validation (e.g., LPS cytokine inhibition) "
+        f"and does not constitute a clinical recommendation."
+    )
+
+    caution = (
+        "Clinical caution: This report summarizes in-silico predictions (ADMETlab/ProTox) plus rule-based heuristics. "
+        "Use alongside clinical guidance, patient context, and your experimental validation."
+    )
+    return text, caution
 
 # =========================
 # Start UI
@@ -632,7 +722,7 @@ with right:
                 st.write(f"**LD50:** {row[ld50_col]}")
 
             st.markdown("---")
-            st.markdown("#### Pregnancy report (1 paragraph + 5 bullets)")
+           
 
             # Paragraph
             paragraph = (
@@ -764,23 +854,97 @@ with right:
             c.metric("Toxicity", "Unknown")
 
             st.markdown("---")
-            st.markdown("#### Pregnancy report (1 paragraph + 5 bullets)")
-            st.write(paragraph)
-            for blt in bullets:
-                st.write(f"• {blt}")
-            st.info(caution)
+           # ---- Professional single-screen report layout ----
+cond_goal = PREGNANCY_CONDITIONS[selected_condition]["goal"]
 
-            pdf_bytes = build_pdf_bytes(
-                title="Pregnancy Drug Card — Novel compound",
-                paragraph=paragraph,
-                bullets=bullets,
-                caution=caution,
-            )
-            st.download_button(
-                "Print / Download PDF",
-                data=pdf_bytes,
-                file_name="novel_compound_pregnancy_drug_card.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+# Keep tox summary you already compute:
+tox_summary = ", ".join(tox_flags) if tox_flags else "no strong toxicity flags detected"
+
+natural_report, caution = build_natural_report(
+    drug_name=name_val,
+    condition=selected_condition,
+    condition_goal=cond_goal,
+    mw=mw, tpsa=tpsa, logp=logp, logd=logd, logs=logs, ppb=ppb, bbb=bbb,
+    pgp_sub=pgp_sub, pgp_inh=pgp_inh,
+    transfer_label=transfer_label, ddi_label=ddi_label,
+    tox_summary=tox_summary,
+    cyp_sub_probs=cyp_sub_probs, cyp_inh_probs=cyp_inh_probs
+)
+
+# Single screen: cards
+st.markdown(f"### {name_val}")
+st.code(f"SMILES: {smiles_val}", language="text")
+st.write(f"**InChIKey:** {inchi}")
+
+# Structure
+if mol:
+    st.image(Draw.MolToImage(mol, size=(1200, 675)), caption="Structure", use_container_width=True)
+
+# Summary pills (quick glance)
+pill_row = st.container()
+with pill_row:
+    st.markdown(
+        f"""
+        <span class="pill">Placental transfer: {transfer_label}</span>
+        <span class="pill">PK/DDI risk: {ddi_label}</span>
+        <span class="pill">Condition: {selected_condition}</span>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Cards grid
+cA, cB = st.columns([1.2, 1.0], gap="large")
+
+with cA:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">ADME</div>', unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("MW", f"{mw:.1f}" if mw is not None else "NA")
+        m1.metric("TPSA", f"{tpsa:.1f}" if tpsa is not None else "NA")
+        m2.metric("logP", f"{logp:.2f}" if logp is not None else "NA")
+        m2.metric("logD", f"{logd:.2f}" if logd is not None else "NA")
+        m3.metric("logS", f"{logs:.2f}" if logs is not None else "NA")
+        m3.metric("PPB", f"{ppb}" if ppb is not None else "NA")
+        st.write(f"**BBB permeability:** {fmt(bbb,2)}")
+
+    with st.container(border=True):
+        st.markdown('<div class="section-title">Transport (P-gp)</div>', unsafe_allow_html=True)
+        st.write(f"**P-gp substrate:** {fmt(pgp_sub,2)}")
+        st.write(f"**P-gp inhibitor:** {fmt(pgp_inh,2)}")
+
+with cB:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">CYP / DDI signals</div>', unsafe_allow_html=True)
+        st.caption("Likelihoods are shown where columns exist in the table.")
+        st.write("**Substrate likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_sub_probs.items()})
+        st.write("**Inhibitor likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_inh_probs.items()})
+
+    with st.container(border=True):
+        st.markdown('<div class="section-title">Toxicity</div>', unsafe_allow_html=True)
+        st.write(f"**Flags:** {tox_summary}")
+        if toxclass_col:
+            st.write(f"**Toxicity class:** {row[toxclass_col]}")
+        if ld50_col:
+            st.write(f"**LD50:** {row[ld50_col]}")
+
+# Natural report (no bullets)
+with st.container(border=True):
+    st.markdown('<div class="section-title">Pregnancy interpretation</div>', unsafe_allow_html=True)
+    st.markdown(natural_report)
+    st.info(caution)
+
+# PDF export uses the same natural text
+pdf_bytes = build_pdf_bytes(
+    title=f"Pregnancy Drug Card — {name_val}",
+    paragraph=re.sub(r"\*\*(.*?)\*\*", r"\\1", natural_report).replace("\n\n", "\n"),
+    bullets=[],  # no bullets in PDF
+    caution=caution
+)
+st.download_button(
+    "Print / Download PDF",
+    data=pdf_bytes,
+    file_name=f"{name_val}_pregnancy_drug_card.pdf".replace(" ", "_"),
+    mime="application/pdf",
+    use_container_width=True,
+)
 
