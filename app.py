@@ -44,31 +44,48 @@ SPLASH_SECONDS = 5
 st.markdown(
     """
     <style>
-      .menon-watermark {
-        position: fixed;
-        bottom: 14px;
-        right: 16px;
-        z-index: 9999;
-        font-size: 14px;
-        font-weight: 900;
-        padding: 8px 12px;
-        border-radius: 12px;
-        background: rgba(0,0,0,0.92);
-        color: #ff4da6;
-        border: 1px solid rgba(255,77,166,0.45);
-        box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+      .splash-card {
+        width: 100%;
+        padding: 22px 18px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(0,0,0,0.95), rgba(18,18,18,0.92));
+        border: 1px solid rgba(255,77,166,0.40);
+        box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+        color: #ffffff;
+        animation: splashFadeIn 700ms ease-out;
+      }
+      .splash-title {
+        font-size: 30px;
+        font-weight: 950;
+        margin: 6px 0 0 0;
         letter-spacing: 0.2px;
       }
+      .splash-subtitle {
+        font-size: 15px;
+        opacity: 0.88;
+        margin: 6px 0 0 0;
+        line-height: 1.35;
+      }
+      .splash-badge {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,77,166,0.15);
+        border: 1px solid rgba(255,77,166,0.35);
+        font-size: 12px;
+        font-weight: 800;
+        color: #ff4da6;
+      }
+      @keyframes splashFadeIn {
+        from {opacity: 0; transform: translateY(14px);}
+        to {opacity: 1; transform: translateY(0px);}
+      }
       @media (max-width: 700px) {
-        .menon-watermark {
-          font-size: 12px;
-          padding: 6px 10px;
-          bottom: 10px;
-          right: 10px;
-        }
+        .splash-title { font-size: 24px; }
+        .splash-subtitle { font-size: 13px; }
       }
     </style>
-    <div class="menon-watermark">Developed by The Menon Laboratory, UTMB</div>
     """,
     unsafe_allow_html=True
 )
@@ -99,67 +116,59 @@ PREGNANCY_CONDITIONS = {
 # =========================
 # Splash Screen
 # =========================
-def splash_screen(duration_sec: int = SPLASH_SECONDS):
-    """Show splash once per session with Menon + UTMB logos."""
+def splash_screen(duration_sec: int = 5):
+    """
+    Product-grade splash:
+    - centered logos
+    - fade-in animation
+    - progress bar
+    - Skip button
+    - shows once per session unless "Replay splash" is clicked
+    """
     if st.session_state.get("splash_done", False):
         return
 
     splash = st.empty()
 
-    splash.markdown(
-        """
-        <style>
-          .splash-wrap {
-            width: 100%;
-            padding: 18px;
-            border-radius: 18px;
-            background: linear-gradient(180deg, rgba(0,0,0,0.94), rgba(25,25,25,0.92));
-            border: 1px solid rgba(255,77,166,0.38);
-            box-shadow: 0 12px 36px rgba(0,0,0,0.38);
-            color: white;
-          }
-          .splash-title {
-            font-size: 30px;
-            font-weight: 950;
-            margin-top: 8px;
-            animation: fadeIn 1.1s ease-in-out;
-          }
-          .splash-sub {
-            font-size: 15px;
-            opacity: 0.88;
-            margin-top: 6px;
-            animation: fadeIn 1.5s ease-in-out;
-          }
-          @keyframes fadeIn {
-            from {opacity: 0; transform: translateY(12px);}
-            to {opacity: 1; transform: translateY(0px);}
-          }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     with splash.container():
-        st.markdown('<div class="splash-wrap">', unsafe_allow_html=True)
+        st.markdown('<div class="splash-card">', unsafe_allow_html=True)
 
-        c1, c2 = st.columns([1, 1], gap="large")
-        with c1:
+        # Top row: logos + skip
+        lcol, ccol, rcol = st.columns([2.4, 2.4, 1.2], gap="small")
+
+        with lcol:
             try:
                 st.image(MENON_LOGO_PATH, use_container_width=True)
             except Exception:
-                st.caption("Logo missing: menon_logo.png (upload to repo)")
-        with c2:
+                st.caption("Missing: menon_logo.png")
+
+        with ccol:
             try:
                 st.image(UTMB_LOGO_PATH, use_container_width=True)
             except Exception:
-                st.caption("Logo missing: utmb_logo.png (upload to repo)")
+                st.caption("Missing: utmb_logo.png")
 
-        st.markdown('<div class="splash-title">The Menon Laboratory</div>', unsafe_allow_html=True)
-        st.markdown('<div class="splash-sub">University of Texas Medical Branch (UTMB)</div>', unsafe_allow_html=True)
-        st.markdown('<div class="splash-sub">Pregnancy Drug Card — Prototype</div>', unsafe_allow_html=True)
+        with rcol:
+            # Skip button
+            if st.button("Skip", use_container_width=True):
+                st.session_state["splash_done"] = True
+                splash.empty()
+                st.rerun()
 
+        # Title + subtitle
+        st.markdown('<div class="splash-title">Pregnancy Drug Card</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="splash-subtitle">'
+            'A research-grade, AI-assisted pregnancy pharmacology profiling prototype<br>'
+            '<b>Developed by The Menon Laboratory, UTMB</b>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown('<div class="splash-badge">Prototype • v1</div>', unsafe_allow_html=True)
+
+        # Progress + timed auto-hide
         prog = st.progress(0)
-        steps = max(12, duration_sec * 12)
+        steps = max(20, duration_sec * 20)
         for i in range(steps):
             prog.progress(int((i + 1) / steps * 100))
             time.sleep(duration_sec / steps)
@@ -168,7 +177,6 @@ def splash_screen(duration_sec: int = SPLASH_SECONDS):
 
     splash.empty()
     st.session_state["splash_done"] = True
-
 
 # =========================
 # Helpers
@@ -775,3 +783,4 @@ with right:
                 mime="application/pdf",
                 use_container_width=True,
             )
+
