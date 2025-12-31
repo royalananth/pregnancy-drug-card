@@ -1,9 +1,12 @@
 # app.py — Pregnancy Drug Card (Menon Lab / UTMB)
-# Copy-paste this whole file into app.py (same folder as:
+# Put these files in the SAME folder (repo root) as this app.py:
 #   - Master table_260 drugs_ADME_Protox.csv
-#   - menon_logo.png
-#   - utmb_logo.png
-# Optional for GenAI (novel SMILES): add OPENAI_API_KEY in Streamlit Secrets.
+#   - menon_logo.png   (optional)
+#   - utmb_logo.png    (optional)
+#
+# Optional GenAI (novel SMILES):
+#   Add OPENAI_API_KEY in Streamlit Secrets.
+#   (Streamlit Cloud → App → Settings → Secrets)
 
 import re
 import io
@@ -32,47 +35,6 @@ except Exception:
 # =========================
 st.set_page_config(page_title="Pregnancy Drug Card", layout="wide")
 
-st.markdown(
-    """
-    <style>
-      .section-title {
-        font-size: 16px;
-        font-weight: 900;
-        margin: 0 0 8px 0;
-      }
-      .muted {
-        opacity: 0.82;
-        font-size: 13px;
-      }
-      .pill {
-        display:inline-block;
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-weight: 800;
-        font-size: 12px;
-        border: 1px solid rgba(255,77,166,0.35);
-        background: rgba(255,77,166,0.12);
-        color: #ff4da6;
-        margin-right: 8px;
-        margin-bottom: 6px;
-      }
-      .card {
-        border-radius: 18px;
-        border: 1px solid rgba(255,77,166,0.20);
-        background: rgba(0,0,0,0.02);
-        padding: 14px 14px;
-      }
-      .subgrid {
-        border-radius: 16px;
-        border: 1px solid rgba(0,0,0,0.08);
-        padding: 12px 12px;
-      }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
 CSV_PATH = "Master table_260 drugs_ADME_Protox.csv"
 MENON_LOGO_PATH = "menon_logo.png"
 UTMB_LOGO_PATH = "utmb_logo.png"
@@ -80,11 +42,43 @@ SPLASH_SECONDS = 5
 
 
 # =========================
-# Branding / Watermark
+# CSS (Professional UI)
 # =========================
 st.markdown(
     """
     <style>
+      .menon-watermark {
+        position: fixed;
+        bottom: 14px;
+        right: 16px;
+        z-index: 9999;
+        font-size: 14px;
+        font-weight: 900;
+        padding: 8px 12px;
+        border-radius: 12px;
+        background: rgba(0,0,0,0.92);
+        color: #ff4da6;
+        border: 1px solid rgba(255,77,166,0.45);
+        box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+        letter-spacing: 0.2px;
+      }
+      @media (max-width: 700px) {
+        .menon-watermark { font-size: 12px; padding: 6px 10px; bottom: 10px; right: 10px; }
+      }
+      .section-title { font-size: 16px; font-weight: 900; margin: 0 0 8px 0; }
+      .muted { opacity: 0.82; font-size: 13px; }
+      .pill {
+        display:inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: 12px;
+        border: 1px solid rgba(255,77,166,0.35);
+        background: rgba(255,77,166,0.10);
+        color: #ff4da6;
+        margin-right: 8px;
+        margin-bottom: 6px;
+      }
       .splash-card {
         width: 100%;
         padding: 22px 18px;
@@ -93,7 +87,7 @@ st.markdown(
         border: 1px solid rgba(255,77,166,0.40);
         box-shadow: 0 14px 40px rgba(0,0,0,0.45);
         color: #ffffff;
-        animation: splashFadeIn 700ms ease-out;
+        animation: splashFadeIn 650ms ease-out;
       }
       .splash-title {
         font-size: 30px;
@@ -115,11 +109,11 @@ st.markdown(
         background: rgba(255,77,166,0.15);
         border: 1px solid rgba(255,77,166,0.35);
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 900;
         color: #ff4da6;
       }
       @keyframes splashFadeIn {
-        from {opacity: 0; transform: translateY(14px);}
+        from {opacity: 0; transform: translateY(12px);}
         to {opacity: 1; transform: translateY(0px);}
       }
       @media (max-width: 700px) {
@@ -127,13 +121,14 @@ st.markdown(
         .splash-subtitle { font-size: 13px; }
       }
     </style>
+    <div class="menon-watermark">Developed by The Menon Laboratory, UTMB</div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 
 # =========================
-# Pregnancy conditions
+# Pregnancy Conditions (v1)
 # =========================
 PREGNANCY_CONDITIONS = {
     "Preterm Birth (PTB) – inflammation-driven": {
@@ -155,59 +150,46 @@ PREGNANCY_CONDITIONS = {
 
 
 # =========================
-# Splash Screen
+# Splash Screen (once/session)
 # =========================
 def splash_screen(duration_sec: int = 5):
-    """
-    Product-grade splash:
-    - centered logos
-    - fade-in animation
-    - progress bar
-    - Skip button
-    - shows once per session unless "Replay splash" is clicked
-    """
     if st.session_state.get("splash_done", False):
         return
 
     splash = st.empty()
-
     with splash.container():
         st.markdown('<div class="splash-card">', unsafe_allow_html=True)
 
-        # Top row: logos + skip
         lcol, ccol, rcol = st.columns([2.4, 2.4, 1.2], gap="small")
 
         with lcol:
             try:
                 st.image(MENON_LOGO_PATH, use_container_width=True)
             except Exception:
-                st.caption("Missing: menon_logo.png")
+                st.caption("menon_logo.png not found (optional)")
 
         with ccol:
             try:
                 st.image(UTMB_LOGO_PATH, use_container_width=True)
             except Exception:
-                st.caption("Missing: utmb_logo.png")
+                st.caption("utmb_logo.png not found (optional)")
 
         with rcol:
-            # Skip button
-            if st.button("Skip", use_container_width=True):
+            if st.button("Skip", use_container_width=True, key="splash_skip"):
                 st.session_state["splash_done"] = True
                 splash.empty()
                 st.rerun()
 
-        # Title + subtitle
         st.markdown('<div class="splash-title">Pregnancy Drug Card</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="splash-subtitle">'
-            'A research-grade, AI-assisted pregnancy pharmacology profiling prototype<br>'
+            'A research-grade pregnancy pharmacology profiling prototype<br>'
             '<b>Developed by The Menon Laboratory, UTMB</b>'
             '</div>',
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
         st.markdown('<div class="splash-badge">Prototype • v1</div>', unsafe_allow_html=True)
 
-        # Progress + timed auto-hide
         prog = st.progress(0)
         steps = max(20, duration_sec * 20)
         for i in range(steps):
@@ -219,9 +201,42 @@ def splash_screen(duration_sec: int = 5):
     splash.empty()
     st.session_state["splash_done"] = True
 
+
 # =========================
 # Helpers
 # =========================
+def normalize_colname(s: str) -> str:
+    s = str(s).strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def find_col(df: pd.DataFrame, candidates):
+    cols = {c.lower(): c for c in df.columns}
+    for cand in candidates:
+        if cand.lower() in cols:
+            return cols[cand.lower()]
+    return None
+
+
+def as_float(x):
+    try:
+        if pd.isna(x):
+            return None
+        return float(x)
+    except Exception:
+        return None
+
+
+def fmt(v, digits=2):
+    if v is None:
+        return "NA"
+    try:
+        return f"{float(v):.{digits}f}"
+    except Exception:
+        return str(v)
+
+
 def safe_mol_from_smiles(smiles: str):
     if not isinstance(smiles, str) or not smiles.strip():
         return None
@@ -246,29 +261,6 @@ def compute_rdkit_descriptors(mol):
         "FracCSP3": float(rdMolDescriptors.CalcFractionCSP3(mol)),
         "cLogP_RDKit": float(Crippen.MolLogP(mol)),
     }
-
-
-def normalize_colname(s: str) -> str:
-    s = str(s).strip()
-    s = re.sub(r"\s+", " ", s)
-    return s
-
-
-def find_col(df, candidates):
-    cols = {c.lower(): c for c in df.columns}
-    for cand in candidates:
-        if cand.lower() in cols:
-            return cols[cand.lower()]
-    return None
-
-
-def as_float(x):
-    try:
-        if pd.isna(x):
-            return None
-        return float(x)
-    except Exception:
-        return None
 
 
 def pregnancy_transfer_risk(logp_or_logd, tpsa, pgp_substrate_prob, ppb):
@@ -369,9 +361,9 @@ def load_and_prepare():
     name_col = find_col(df, ["Drug name", "Drug_name", "Name", "drug_name", "drug"])
     smiles_col = find_col(df, ["SMILES", "Smiles", "Canonical SMILES", "canonical_smiles"])
     if smiles_col is None:
-        raise ValueError("Could not find a SMILES column. Ensure your CSV has 'SMILES' column.")
+        raise ValueError("Could not find a SMILES column. Ensure your CSV has a column named 'SMILES'.")
 
-    # Compute RDKit descriptors for dataset entries
+    # Compute minimal RDKit descriptors for dataset rows
     inchikeys, mw, tpsa = [], [], []
     for s in df[smiles_col].tolist():
         mol = safe_mol_from_smiles(s)
@@ -388,13 +380,23 @@ def load_and_prepare():
     df["RDKit_MW"] = mw
     df["RDKit_TPSA"] = tpsa
 
+    # Stable numeric id for keys
     if "compound_id" not in [c.lower() for c in df.columns]:
         df.insert(0, "compound_id", range(1, len(df) + 1))
 
     return df, name_col, smiles_col
 
 
-def build_pdf_bytes(title: str, paragraph: str, bullets: list[str], caution: str) -> bytes:
+def strip_markdown(s: str) -> str:
+    # Minimal cleanup for PDF: remove bold markers and extra whitespace
+    if not s:
+        return ""
+    s = re.sub(r"\*\*(.*?)\*\*", r"\1", s)
+    s = re.sub(r"\s+\n", "\n", s)
+    return s.strip()
+
+
+def build_pdf_bytes(title: str, paragraph: str, caution: str) -> bytes:
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -425,12 +427,6 @@ def build_pdf_bytes(title: str, paragraph: str, bullets: list[str], caution: str
 
     y = draw_wrapped(paragraph, y)
     y -= 10
-
-    y = draw_wrapped("Key bullets", y, font="Helvetica-Bold", size=10)
-    for b in bullets:
-        y = draw_wrapped(f"• {b}", y, max_chars=100)
-
-    y -= 10
     y = draw_wrapped(caution, y, max_chars=105, font="Helvetica-Oblique", size=9, line_height=12)
 
     c.showPage()
@@ -453,29 +449,27 @@ def get_openai_client():
 
 def genai_report_for_novel(smiles: str, inchikey: str, condition: str, facts: dict, heuristics: dict):
     """
-    Returns (paragraph, bullets[5], caution) using LLM, grounded to facts provided.
+    Returns (paragraph, caution) grounded ONLY to provided facts/heuristics.
     """
     client = get_openai_client()
     if client is None:
-        return None, None, None
+        return None, None
 
     schema = {
         "type": "object",
         "properties": {
             "paragraph": {"type": "string"},
-            "bullets": {"type": "array", "items": {"type": "string"}, "minItems": 5, "maxItems": 5},
             "caution": {"type": "string"},
         },
-        "required": ["paragraph", "bullets", "caution"],
+        "required": ["paragraph", "caution"],
         "additionalProperties": False,
     }
 
     prompt = f"""
 You are drafting a cautious pregnancy pharmacology summary for RESEARCH USE.
-Use ONLY the supplied facts and heuristics. Do NOT invent ADMETlab/ProTox, CYP, P-gp, BBB, LD50 or toxicity flags.
-Output exactly:
+Use ONLY the supplied facts and heuristics. Do NOT invent ADMETlab/ProTox, CYP, P-gp, BBB, LD50, or toxicity flags.
+Return:
 - One short paragraph
-- Exactly 5 bullets
 - One caution line
 Pregnancy condition: {condition}
 Condition goal: {PREGNANCY_CONDITIONS[condition]['goal']}
@@ -499,22 +493,8 @@ Return JSON only.
         text={"format": {"type": "json_schema", "name": "novel_drug_card", "schema": schema}},
     )
     data = json.loads(resp.output_text)
-    return data["paragraph"], data["bullets"], data["caution"]
+    return data["paragraph"], data["caution"]
 
-def fmt(v, digits=2):
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return "NA"
-    try:
-        return f"{float(v):.{digits}f}"
-    except Exception:
-        return str(v)
-
-def short_cyp_summary(cyp_sub_probs, cyp_inh_probs):
-    subs = [k for k, v in cyp_sub_probs.items() if v is not None and v >= 0.5]
-    inhibs = [k for k, v in cyp_inh_probs.items() if v is not None and v >= 0.5]
-    s1 = ", ".join(subs[:4]) if subs else "no strong substrate signals"
-    s2 = ", ".join(inhibs[:4]) if inhibs else "no strong inhibitor signals"
-    return s1, s2
 
 def build_natural_report(
     drug_name: str,
@@ -527,45 +507,46 @@ def build_natural_report(
     cyp_sub_probs, cyp_inh_probs
 ):
     lipoph = logp if logp is not None else logd
-    sub_str, inh_str = short_cyp_summary(cyp_sub_probs, cyp_inh_probs)
 
-    # Natural narrative (no bullets)
+    subs = [k for k, v in cyp_sub_probs.items() if v is not None and v >= 0.5]
+    inhibs = [k for k, v in cyp_inh_probs.items() if v is not None and v >= 0.5]
+    sub_str = ", ".join(subs[:4]) if subs else "no strong substrate signals"
+    inh_str = ", ".join(inhibs[:4]) if inhibs else "no strong inhibitor signals"
+
     text = (
-        f"**{drug_name}** was profiled for **{condition}**. The main objective for this condition is: "
-        f"*{condition_goal}* \n\n"
-        f"From an exposure/transport perspective, the compound has MW **{fmt(mw,1)}** and TPSA **{fmt(tpsa,1)}**, "
-        f"with lipophilicity (logP/logD) **{fmt(lipoph,2)}** and protein binding **{fmt(ppb,2)}**. "
-        f"BBB permeability is **{fmt(bbb,2)}** (if available). \n\n"
-        f"Transporter signals suggest **P-gp substrate: {fmt(pgp_sub,2)}** and **P-gp inhibitor: {fmt(pgp_inh,2)}**. "
-        f"Using a transparent heuristic, **placental transfer likelihood is {transfer_label}**. \n\n"
-        f"Metabolism/DDI signals indicate **{ddi_label} pregnancy PK-shift/DDI risk**, driven by CYP patterns "
-        f"(substrates: {sub_str}; inhibitors: {inh_str}). \n\n"
+        f"**{drug_name}** was profiled for **{condition}**. The condition objective is: *{condition_goal}*\n\n"
+        f"Physicochemical/ADME context: MW **{fmt(mw,1)}** and TPSA **{fmt(tpsa,1)}**, lipophilicity (logP/logD) "
+        f"**{fmt(lipoph,2)}**, solubility (logS) **{fmt(logs,2)}**, and protein binding **{fmt(ppb,2)}**. "
+        f"BBB permeability is **{fmt(bbb,2)}** (if available).\n\n"
+        f"Transport signals: **P-gp substrate {fmt(pgp_sub,2)}** and **P-gp inhibitor {fmt(pgp_inh,2)}**. "
+        f"Using a transparent heuristic, **placental transfer likelihood is {transfer_label}**.\n\n"
+        f"Metabolism/DDI signals suggest **{ddi_label} pregnancy PK-shift/DDI risk**, driven by CYP patterns "
+        f"(substrates: {sub_str}; inhibitors: {inh_str}).\n\n"
         f"Toxicity flags from the current table indicate **{tox_summary}**. "
-        f"This interpretation is intended to help prioritize experimental validation (e.g., LPS cytokine inhibition) "
-        f"and does not constitute a clinical recommendation."
+        f"This interpretation is intended to help prioritize experimental validation and is not a clinical recommendation."
     )
 
     caution = (
         "Clinical caution: This report summarizes in-silico predictions (ADMETlab/ProTox) plus rule-based heuristics. "
-        "Use alongside clinical guidance, patient context, and your experimental validation."
+        "Use alongside clinical guidance, patient context, and experimental validation."
     )
     return text, caution
 
+
 # =========================
-# Start UI
+# UI Start
 # =========================
 splash_screen(SPLASH_SECONDS)
 
-# Sidebar: replay splash + help
 with st.sidebar:
     st.markdown("### Controls")
-    if st.button("Replay splash"):
+    if st.button("Replay splash", key="replay_splash"):
         st.session_state["splash_done"] = False
         st.rerun()
     st.markdown("---")
-    st.caption("To show logos on splash, upload: menon_logo.png and utmb_logo.png into the same repo folder as app.py")
+    st.caption("Logos appear on splash only if menon_logo.png and utmb_logo.png exist in the repo root.")
 
-# Top bar (header + condition + exit)
+# Top bar
 top = st.container(border=True)
 with top:
     h1, h2, h3 = st.columns([6, 2.2, 1])
@@ -573,9 +554,14 @@ with top:
         st.markdown("## Pregnancy Drug Card")
         st.caption("Product of The Menon Laboratory, UTMB")
     with h2:
-        selected_condition = st.selectbox("Pregnancy condition", list(PREGNANCY_CONDITIONS.keys()), index=0)
+        selected_condition = st.selectbox(
+            "Pregnancy condition",
+            list(PREGNANCY_CONDITIONS.keys()),
+            index=0,
+            key="condition_select"
+        )
     with h3:
-        if st.button("Exit", use_container_width=True):
+        if st.button("Exit", use_container_width=True, key="exit_btn"):
             st.markdown("<script>window.open('','_self'); window.close();</script>", unsafe_allow_html=True)
 
 # Load dataset
@@ -585,25 +571,33 @@ except Exception as e:
     st.error(f"Failed to load CSV: {e}")
     st.stop()
 
-# Single screen: left search + right report
+# Main layout
 left, right = st.columns([1.15, 2.2], gap="large")
 
 with left:
     st.subheader("Search")
-    query_name = st.text_input("Drug name", placeholder="Type drug name (partial ok)")
-    pasted_smiles = st.text_area("Or paste SMILES (novel compound)", height=90, placeholder="Paste SMILES here (if novel)")
 
-    is_novel = bool(pasted_smiles.strip())
+    query_name = st.text_input("Drug name", placeholder="Type drug name (partial ok)", key="q_name")
+    pasted_smiles = st.text_area(
+        "Or paste SMILES (novel compound)",
+        height=90,
+        placeholder="Paste SMILES here (if novel)",
+        key="q_smiles"
+    )
+
+    is_novel = bool((pasted_smiles or "").strip())
 
     ai_enabled = st.toggle(
         "Use Generative AI for novel compounds (beta)",
         value=False,
-        disabled=(not is_novel)
+        disabled=(not is_novel),
+        key="ai_toggle"
     )
-    st.caption("GenAI requires OPENAI_API_KEY in Streamlit Secrets. If not set, app will fall back to rule-based text.")
+    st.caption("GenAI requires OPENAI_API_KEY in Streamlit Secrets. Otherwise it falls back to rule-based text.")
 
     if not is_novel:
         display_name = df[name_col] if name_col else pd.Series(["Unknown"] * len(df))
+
         if query_name.strip():
             q = query_name.strip().lower()
             filtered = df[display_name.fillna("").astype(str).str.lower().str.contains(q)].copy()
@@ -620,10 +614,10 @@ with left:
             + filtered[smiles_col].fillna("").astype(str)
         ).tolist()
 
-        sel = st.selectbox("Select compound", filtered_display, index=0)
+        sel = st.selectbox("Select compound", filtered_display, index=0, key="compound_select")
         row = filtered.iloc[filtered_display.index(sel)]
     else:
-        row = None  # handled on right
+        row = None
 
 with right:
     st.subheader("Report")
@@ -635,12 +629,13 @@ with right:
         name_val = row[name_col] if name_col else "Unknown"
         smiles_val = str(row[smiles_col])
         inchi = row.get("InChIKey_calc", "NA")
+        compound_id = int(row.get("compound_id", 0)) if "compound_id" in row.index else 0
 
         mol = safe_mol_from_smiles(smiles_val)
         if mol:
             st.image(Draw.MolToImage(mol, size=(1200, 675)), caption="Structure", use_container_width=True)
 
-        # Column detection
+        # Column detection (best effort)
         logp_col = find_col(df, ["LogP", "logP", "cLogP", "XlogP"])
         logd_col = find_col(df, ["LogD", "logD"])
         logs_col = find_col(df, ["LogS", "logS", "Solubility"])
@@ -675,12 +670,11 @@ with right:
         # Values
         mw = as_float(row.get("RDKit_MW"))
         tpsa = as_float(row.get("RDKit_TPSA"))
-
         logp = as_float(row[logp_col]) if logp_col else None
         logd = as_float(row[logd_col]) if logd_col else None
         logs = as_float(row[logs_col]) if logs_col else None
-        ppb  = as_float(row[ppb_col])  if ppb_col  else None
-        bbb  = as_float(row[bbb_col])  if bbb_col  else None
+        ppb  = as_float(row[ppb_col])  if ppb_col else None
+        bbb  = as_float(row[bbb_col])  if bbb_col else None
 
         pgp_sub = as_float(row[pgp_sub_col]) if pgp_sub_col else None
         pgp_inh = as_float(row[pgp_inh_col]) if pgp_inh_col else None
@@ -694,82 +688,96 @@ with right:
 
         tox_flags = tox_flag_summary(row, tox_cols)
         tox_summary = ", ".join(tox_flags) if tox_flags else "no strong toxicity flags detected"
+        if toxclass_col:
+            tox_summary = tox_summary + f" (class {row[toxclass_col]})"
+
         cond_goal = PREGNANCY_CONDITIONS[selected_condition]["goal"]
 
-        # Dashboard
-        box = st.container(border=True)
-        with box:
-            st.markdown(f"### {name_val}")
-            st.code(f"SMILES: {smiles_val}", language="text")
-            st.write(f"**InChIKey:** {inchi}")
+        # Title block
+        st.markdown(f"### {name_val}")
+        st.code(f"SMILES: {smiles_val}", language="text")
+        st.write(f"**InChIKey:** {inchi}")
 
-            a, b, c = st.columns(3)
-            a.metric("MW", f"{mw:.1f}" if mw is not None else "NA")
-            a.metric("BBB", f"{bbb:.2f}" if bbb is not None else "NA")
-            b.metric("logP", f"{logp:.2f}" if logp is not None else "NA")
-            b.metric("logD", f"{logd:.2f}" if logd is not None else "NA")
-            c.metric("logS", f"{logs:.2f}" if logs is not None else "NA")
-            c.metric("PPB", f"{ppb}" if ppb is not None else "NA")
+        # Quick pills
+        st.markdown(
+            f"""
+            <span class="pill">Placental transfer: {transfer_label}</span>
+            <span class="pill">PK/DDI risk: {ddi_label}</span>
+            <span class="pill">Condition: {selected_condition}</span>
+            """,
+            unsafe_allow_html=True
+        )
 
-            st.write(f"**P-gp substrate:** {('NA' if pgp_sub is None else round(pgp_sub,2))}")
-            st.write(f"**P-gp inhibitor:** {('NA' if pgp_inh is None else round(pgp_inh,2))}")
+        # Cards
+        cA, cB = st.columns([1.25, 1.0], gap="large")
 
-            st.write("**CYP substrate likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_sub_probs.items()})
-            st.write("**CYP inhibitor likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_inh_probs.items()})
+        with cA:
+            with st.container(border=True):
+                st.markdown('<div class="section-title">ADME</div>', unsafe_allow_html=True)
+                m1, m2, m3 = st.columns(3)
+                m1.metric("MW", fmt(mw, 1))
+                m1.metric("TPSA", fmt(tpsa, 1))
+                m2.metric("logP", fmt(logp, 2))
+                m2.metric("logD", fmt(logd, 2))
+                m3.metric("logS", fmt(logs, 2))
+                m3.metric("PPB", fmt(ppb, 2))
+                st.write(f"**BBB permeability:** {fmt(bbb,2)}")
 
-            st.write("**Toxicity:** " + tox_summary + (f" | class {row[toxclass_col]}" if toxclass_col else ""))
-            if ld50_col:
-                st.write(f"**LD50:** {row[ld50_col]}")
+            with st.container(border=True):
+                st.markdown('<div class="section-title">Transport (P-gp)</div>', unsafe_allow_html=True)
+                st.write(f"**P-gp substrate:** {fmt(pgp_sub,2)}")
+                st.write(f"**P-gp inhibitor:** {fmt(pgp_inh,2)}")
 
-            st.markdown("---")
-           
+        with cB:
+            with st.container(border=True):
+                st.markdown('<div class="section-title">CYP / DDI signals</div>', unsafe_allow_html=True)
+                st.caption("Likelihoods shown where columns exist in the table.")
+                st.write("**Substrate likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_sub_probs.items()})
+                st.write("**Inhibitor likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_inh_probs.items()})
 
-            # Paragraph
-            paragraph = (
-                f"{name_val} is predicted to have BBB permeability {('NA' if bbb is None else f'{bbb:.2f}')}, "
-                f"P-gp substrate {('NA' if pgp_sub is None else f'{pgp_sub:.2f}')} and inhibitor {('NA' if pgp_inh is None else f'{pgp_inh:.2f}')}, "
-                f"with {ddi_label} pregnancy PK shift/DDI potential based on CYP substrate/inhibitor likelihoods. "
-                f"Placental transfer likelihood is estimated as {transfer_label} using lipophilicity (logP/logD), TPSA, PPB, and P-gp interaction. "
-                f"Toxicity signals indicate {tox_summary}. Condition focus: {selected_condition}. {cond_goal}"
-            )
+            with st.container(border=True):
+                st.markdown('<div class="section-title">Toxicity</div>', unsafe_allow_html=True)
+                st.write(f"**Summary:** {tox_summary}")
+                if ld50_col:
+                    st.write(f"**LD50:** {row[ld50_col]}")
 
-            bullets = [
-                f"Identity: {name_val} | InChIKey: {inchi}",
-                f"ADME: MW {('NA' if mw is None else round(mw,1))} | TPSA {('NA' if tpsa is None else round(tpsa,1))} | logP {('NA' if logp is None else round(logp,2))} / logD {('NA' if logd is None else round(logd,2))} | logS {('NA' if logs is None else round(logs,2))} | PPB {('NA' if ppb is None else ppb)} | BBB {('NA' if bbb is None else round(bbb,2))}",
-                f"Transporter/CYP/DDI: P-gp sub {('NA' if pgp_sub is None else round(pgp_sub,2))} | P-gp inh {('NA' if pgp_inh is None else round(pgp_inh,2))} | PK shift/DDI risk: {ddi_label}",
-                f"Placental transfer likelihood: {transfer_label}",
-                f"Toxicity: {tox_summary}" + (f" | class {row[toxclass_col]}" if toxclass_col else ""),
-            ]
+        # Natural report (NO bullets shown)
+        natural_report, caution = build_natural_report(
+            drug_name=name_val,
+            condition=selected_condition,
+            condition_goal=cond_goal,
+            mw=mw, tpsa=tpsa, logp=logp, logd=logd, logs=logs, ppb=ppb, bbb=bbb,
+            pgp_sub=pgp_sub, pgp_inh=pgp_inh,
+            transfer_label=transfer_label, ddi_label=ddi_label,
+            tox_summary=tox_summary,
+            cyp_sub_probs=cyp_sub_probs, cyp_inh_probs=cyp_inh_probs
+        )
 
-            caution = (
-                "Clinical caution: This report is based on in-silico predictions (ADMETlab/ProTox) plus rule-based heuristics; "
-                "it is not a clinical recommendation. Interpret alongside guidelines, patient context, and experimental validation."
-            )
-
-            st.write(paragraph)
-            for b in bullets:
-                st.write(f"• {b}")
+        with st.container(border=True):
+            st.markdown('<div class="section-title">Pregnancy interpretation</div>', unsafe_allow_html=True)
+            st.markdown(natural_report)
             st.info(caution)
 
-            pdf_bytes = build_pdf_bytes(
-                title=f"Pregnancy Drug Card — {name_val}",
-                paragraph=paragraph,
-                bullets=bullets,
-                caution=caution,
-            )
-            st.download_button(
-                "Print / Download PDF",
-                data=pdf_bytes,
-                file_name=f"{name_val}_pregnancy_drug_card.pdf".replace(" ", "_"),
-                mime="application/pdf",
-                use_container_width=True,
-            )
+        # PDF (one button only) — UNIQUE KEY avoids StreamlitDuplicateElementId
+        pdf_bytes = build_pdf_bytes(
+            title=f"Pregnancy Drug Card — {name_val}",
+            paragraph=strip_markdown(natural_report),
+            caution=caution
+        )
+        st.download_button(
+            "Print / Download PDF",
+            data=pdf_bytes,
+            file_name=f"{name_val}_pregnancy_drug_card.pdf".replace(" ", "_"),
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"pdf_dataset_{compound_id}_{selected_condition}"
+        )
 
     # =====================
     # B) Novel SMILES
     # =====================
     else:
-        smiles_val = pasted_smiles.strip()
+        smiles_val = (pasted_smiles or "").strip()
         mol = safe_mol_from_smiles(smiles_val)
         if mol is None:
             st.error("Invalid SMILES. Please correct and try again.")
@@ -781,7 +789,7 @@ with right:
         inchikey = compute_inchikey(mol) or "NA"
         cond_goal = PREGNANCY_CONDITIONS[selected_condition]["goal"]
 
-        # Heuristic flags (novel has no ADMETlab/ProTox yet)
+        # Novel: only RDKit + heuristics
         transfer_label, _ = pregnancy_transfer_risk(d["cLogP_RDKit"], d["TPSA"], None, None)
         ddi_label = "Unknown"
         tox_summary = "Unknown (no ProTox provided)"
@@ -795,7 +803,7 @@ with right:
             "RotB": d["RotB"],
             "RingCount": d["RingCount"],
             "FracCSP3": round(d["FracCSP3"], 3),
-            "BBB": "Unknown (no model value provided)",
+            "BBB": "Unknown (not provided)",
             "P-gp substrate/inhibitor": "Unknown (not provided)",
             "CYP / DDI": "Unknown (not provided)",
             "Toxicity profiles": "Unknown (not provided)",
@@ -805,146 +813,73 @@ with right:
             "Pregnancy PK shift/DDI risk": ddi_label,
         }
 
-        # Default (non-GenAI) text
-        paragraph = (
-            f"This novel compound has computed MW {facts['MW']} and TPSA {facts['TPSA']} with RDKit cLogP {facts['cLogP_RDKit']}. "
-            f"Placental transfer likelihood is estimated as {transfer_label} using a transparent heuristic based on cLogP and TPSA. "
-            f"ADMETlab/ProTox transporter/CYP/toxicity signals are not available for this novel structure in the current version. "
-            f"Condition focus: {selected_condition}. {cond_goal}"
+        # Default narrative
+        natural_report = (
+            f"**Novel compound** was profiled for **{selected_condition}**. The condition objective is: *{cond_goal}*\n\n"
+            f"This structure has computed MW **{fmt(d['MW'],1)}** and TPSA **{fmt(d['TPSA'],1)}**, with RDKit cLogP "
+            f"**{fmt(d['cLogP_RDKit'],2)}**. Using a transparent heuristic, **placental transfer likelihood is {transfer_label}**.\n\n"
+            f"Transporter/CYP/toxicity predictions from ADMETlab/ProTox are not available for this novel structure in the current version, "
+            f"so DDI risk and toxicity remain **Unknown** until those models/measurements are added."
         )
-        bullets = [
-            f"Identity: Novel compound | InChIKey: {inchikey}",
-            f"Chemistry: MW {facts['MW']} | TPSA {facts['TPSA']} | cLogP {facts['cLogP_RDKit']}",
-            f"Placental transfer (heuristic): {transfer_label}",
-            "Transporter/CYP/DDI: Unknown (not provided)",
-            "Toxicity: Unknown (not provided)",
-        ]
         caution = (
             "Clinical caution: This novel-compound report is based only on RDKit descriptors + simple heuristics. "
             "It is not a clinical recommendation."
         )
 
-        # If GenAI enabled and key exists: generate polished paragraph+bullets (still grounded)
+        # Optional GenAI (still grounded)
         if ai_enabled:
             with st.spinner("Generating AI-assisted report (grounded to computed facts)..."):
-                p2, b2, c2 = genai_report_for_novel(
+                p2, c2 = genai_report_for_novel(
                     smiles=smiles_val,
                     inchikey=inchikey,
                     condition=selected_condition,
                     facts=facts,
                     heuristics=heuristics,
                 )
-            if p2 and b2 and c2:
-                paragraph, bullets, caution = p2, b2, c2
+            if p2 and c2:
+                natural_report, caution = p2, c2
             else:
-                st.warning("Generative AI not configured. Add OPENAI_API_KEY in Streamlit Secrets (or remove GenAI toggle).")
+                st.warning("GenAI not configured. Add OPENAI_API_KEY in Streamlit Secrets to enable it.")
 
-        box = st.container(border=True)
-        with box:
-            st.markdown("### Novel compound")
-            st.code(f"SMILES: {smiles_val}", language="text")
-            st.write(f"**InChIKey:** {inchikey}")
+        # Header
+        st.markdown("### Novel compound")
+        st.code(f"SMILES: {smiles_val}", language="text")
+        st.write(f"**InChIKey:** {inchikey}")
 
-            a, b, c = st.columns(3)
-            a.metric("MW", f"{facts['MW']}")
-            a.metric("TPSA", f"{facts['TPSA']}")
-            b.metric("RDKit cLogP", f"{facts['cLogP_RDKit']}")
-            b.metric("Placental transfer", transfer_label)
-            c.metric("DDI risk", ddi_label)
-            c.metric("Toxicity", "Unknown")
+        st.markdown(
+            f"""
+            <span class="pill">Placental transfer: {transfer_label}</span>
+            <span class="pill">PK/DDI risk: {ddi_label}</span>
+            <span class="pill">Condition: {selected_condition}</span>
+            """,
+            unsafe_allow_html=True
+        )
 
-            st.markdown("---")
-           # ---- Professional single-screen report layout ----
-cond_goal = PREGNANCY_CONDITIONS[selected_condition]["goal"]
+        # Compact metrics
+        a, b, c = st.columns(3)
+        a.metric("MW", fmt(d["MW"], 1))
+        a.metric("TPSA", fmt(d["TPSA"], 1))
+        b.metric("RDKit cLogP", fmt(d["cLogP_RDKit"], 2))
+        b.metric("Placental transfer", transfer_label)
+        c.metric("DDI risk", ddi_label)
+        c.metric("Toxicity", "Unknown")
 
-# Keep tox summary you already compute:
-tox_summary = ", ".join(tox_flags) if tox_flags else "no strong toxicity flags detected"
+        with st.container(border=True):
+            st.markdown('<div class="section-title">Pregnancy interpretation</div>', unsafe_allow_html=True)
+            st.markdown(natural_report)
+            st.info(caution)
 
-natural_report, caution = build_natural_report(
-    drug_name=name_val,
-    condition=selected_condition,
-    condition_goal=cond_goal,
-    mw=mw, tpsa=tpsa, logp=logp, logd=logd, logs=logs, ppb=ppb, bbb=bbb,
-    pgp_sub=pgp_sub, pgp_inh=pgp_inh,
-    transfer_label=transfer_label, ddi_label=ddi_label,
-    tox_summary=tox_summary,
-    cyp_sub_probs=cyp_sub_probs, cyp_inh_probs=cyp_inh_probs
-)
-
-# Single screen: cards
-st.markdown(f"### {name_val}")
-st.code(f"SMILES: {smiles_val}", language="text")
-st.write(f"**InChIKey:** {inchi}")
-
-# Structure
-if mol:
-    st.image(Draw.MolToImage(mol, size=(1200, 675)), caption="Structure", use_container_width=True)
-
-# Summary pills (quick glance)
-pill_row = st.container()
-with pill_row:
-    st.markdown(
-        f"""
-        <span class="pill">Placental transfer: {transfer_label}</span>
-        <span class="pill">PK/DDI risk: {ddi_label}</span>
-        <span class="pill">Condition: {selected_condition}</span>
-        """,
-        unsafe_allow_html=True
-    )
-
-# Cards grid
-cA, cB = st.columns([1.2, 1.0], gap="large")
-
-with cA:
-    with st.container(border=True):
-        st.markdown('<div class="section-title">ADME</div>', unsafe_allow_html=True)
-        m1, m2, m3 = st.columns(3)
-        m1.metric("MW", f"{mw:.1f}" if mw is not None else "NA")
-        m1.metric("TPSA", f"{tpsa:.1f}" if tpsa is not None else "NA")
-        m2.metric("logP", f"{logp:.2f}" if logp is not None else "NA")
-        m2.metric("logD", f"{logd:.2f}" if logd is not None else "NA")
-        m3.metric("logS", f"{logs:.2f}" if logs is not None else "NA")
-        m3.metric("PPB", f"{ppb}" if ppb is not None else "NA")
-        st.write(f"**BBB permeability:** {fmt(bbb,2)}")
-
-    with st.container(border=True):
-        st.markdown('<div class="section-title">Transport (P-gp)</div>', unsafe_allow_html=True)
-        st.write(f"**P-gp substrate:** {fmt(pgp_sub,2)}")
-        st.write(f"**P-gp inhibitor:** {fmt(pgp_inh,2)}")
-
-with cB:
-    with st.container(border=True):
-        st.markdown('<div class="section-title">CYP / DDI signals</div>', unsafe_allow_html=True)
-        st.caption("Likelihoods are shown where columns exist in the table.")
-        st.write("**Substrate likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_sub_probs.items()})
-        st.write("**Inhibitor likelihoods:**", {k: (None if v is None else round(v, 2)) for k, v in cyp_inh_probs.items()})
-
-    with st.container(border=True):
-        st.markdown('<div class="section-title">Toxicity</div>', unsafe_allow_html=True)
-        st.write(f"**Flags:** {tox_summary}")
-        if toxclass_col:
-            st.write(f"**Toxicity class:** {row[toxclass_col]}")
-        if ld50_col:
-            st.write(f"**LD50:** {row[ld50_col]}")
-
-# Natural report (no bullets)
-with st.container(border=True):
-    st.markdown('<div class="section-title">Pregnancy interpretation</div>', unsafe_allow_html=True)
-    st.markdown(natural_report)
-    st.info(caution)
-
-# PDF export uses the same natural text
-pdf_bytes = build_pdf_bytes(
-    title=f"Pregnancy Drug Card — {name_val}",
-    paragraph=re.sub(r"\*\*(.*?)\*\*", r"\\1", natural_report).replace("\n\n", "\n"),
-    bullets=[],  # no bullets in PDF
-    caution=caution
-)
-st.download_button(
-    "Print / Download PDF",
-    data=pdf_bytes,
-    file_name=f"{name_val}_pregnancy_drug_card.pdf".replace(" ", "_"),
-    mime="application/pdf",
-    use_container_width=True,
-)
-
+        # PDF — UNIQUE KEY
+        pdf_bytes = build_pdf_bytes(
+            title="Pregnancy Drug Card — Novel compound",
+            paragraph=strip_markdown(natural_report),
+            caution=caution
+        )
+        st.download_button(
+            "Print / Download PDF",
+            data=pdf_bytes,
+            file_name="novel_compound_pregnancy_drug_card.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"pdf_novel_{inchikey}_{selected_condition}"
+        )
