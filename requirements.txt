@@ -1,9 +1,8 @@
 streamlit
 pandas
-numpy<2
-rdkit-pypi
+numpy
+scikit-learn
+joblib
+rdkit
 reportlab
-
-
-
-
+Pillow
